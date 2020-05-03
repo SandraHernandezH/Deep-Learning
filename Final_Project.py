@@ -41,11 +41,15 @@ def normalize(data, mean_x, std_x):
 class layerModel(Model):
     def __init__(self, inp_shape):
         super(layerModel, self).__init__()
-        self.h = Dense(50, activation = 'relu', kernel_initializer = 'glorot_uniform', input_shape=(inp_shape, ))
+        self.h = Dense(100, activation = 'relu', kernel_initializer = 'glorot_uniform', input_shape=(inp_shape, ))
+        self.h2 = Dense(200, activation = 'relu', kernel_initializer = 'glorot_uniform', input_shape = (inp_shape,))
+        self.h3 = Dense(50, activation = 'relu', kernel_initializer = 'glorot_uniform', input_shape = (inp_shape,))
         self.p = Dense(10, activation ='softmax')
 
     def call(self, x):
         x = self.h(x)
+        x = self.h2(x)
+        x = self.h3(x)
         return self.p(x)
 
 model = layerModel(3072)
@@ -92,7 +96,7 @@ if __name__ == "__main__":
     filetrain3 = "C:\cifar-10-batches-py\data_batch_3"
     filetrain4 = "C:\cifar-10-batches-py\data_batch_4"
     filetrain5 = "C:\cifar-10-batches-py\data_batch_5"
-    filetest = "C:\\cifar-10-batches-py\\test_batch"
+    filetest = "C:\cifar-10-batches-py\\test_batch"
 
     train_X, train_lab = unpickle(filetrain1)
     train_X2, train_lab2 = unpickle(filetrain2)
@@ -130,14 +134,13 @@ if __name__ == "__main__":
     print("transforming of data...")
     train_data = tf.data.Dataset.from_tensor_slices((train_X, train_lab))
     train_data = train_data.map(lambda img, label: ((tf.cast(img/tf.math.reduce_max(img), tf.float32) - mean_X)/std_X, tf.cast(label, tf.int32))).batch(32)
-
     #tf.reduce_max(random_int_var)
 
     val_data = tf.data.Dataset.from_tensor_slices((val_X, val_lab))
-    val_data = val_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32))).batch(32)
+    val_data = val_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32))).batch(1000)
 
     test_data = tf.data.Dataset.from_tensor_slices((test_X, test_lab))
-    test_data = test_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32)))
+    test_data = test_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32))).batch(10000)
 
     alfa = test_data.element_spec[0]
 
@@ -163,8 +166,8 @@ if __name__ == "__main__":
 
     template = 'Test Loss: {}, Test Accuracy: {}'
     print(template.format(
-                        train_loss.result(),
-                        train_accuracy.result()*100))
+                        test_loss.result(),
+                        test_accuracy.result()*100))
    
 
     a = 1
