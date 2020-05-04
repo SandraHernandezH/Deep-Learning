@@ -163,7 +163,7 @@ if __name__ == "__main__":
     for i in range(epoch):
         for images, labels in train_data:
             #print(tf.shape(images))
-            print(images.get_shape())
+            print(images.get_shape()[-1])
             train_step(images, labels)
 
             

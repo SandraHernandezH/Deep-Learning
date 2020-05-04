@@ -2,7 +2,7 @@ from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Conv2D, Resha
 from tensorflow.keras import Model
 
 class Squeeze_and_Excite(Model):
-     def __init__(self, s, r):
+     def __init__(self, s, r = 3):
         super(Squeeze_and_Excite, self).__init__()
         self.squeeze = GlobalAveragePooling2D(data_format = 'channels_last')
         self.dense_rel = Dense(s//r, activation = 'relu', kernel_initializer = 'he_normal')

@@ -23,6 +23,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Final_Project.py" />
+    <Compile Include="ResNet50.py" />
     <Compile Include="Squeeze_and_Excite.py">
       <SubType>Code</SubType>
     </Compile>
