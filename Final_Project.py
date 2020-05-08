@@ -10,8 +10,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 import tensorflow.keras.backend as K
 from Squeeze_and_Excite import Squeeze_and_Excite 
+from ResNet50 import *
 
-epoch = 10
+epoch = 1
 
 
 def unpickle(file):
@@ -43,7 +44,7 @@ def normalize(data, mean_x, std_x):
 class layerModel(Model):
     def __init__(self, inp_shape):
         super(layerModel, self).__init__()
-        self.squeeze = Squeeze_and_Excite(inp_shape, 3) # ratio = 3 (es bien)
+        self.squeeze = Squeeze_and_Excite(inp_shape, 3) # ratio = 3 
         self.reshape = Flatten()  #Reshape((3072, 1))
         self.h = Dense(100, activation = 'relu', kernel_initializer = 'glorot_uniform', input_shape=(inp_shape, ))
         self.p = Dense(10, activation ='softmax')
@@ -55,7 +56,7 @@ class layerModel(Model):
         y = self.p(y)
         return y
 
-model = layerModel(3)
+#model = layerModel(3)
 
 loss_object = tf.keras.losses.SparseCategoricalCrossentropy()
 optimizer = tf.keras.optimizers.SGD(learning_rate=0.01)
@@ -90,6 +91,8 @@ def test_step(images, labels):
 
 
 if __name__ == "__main__":
+
+    save_model_dir = ".\checkpoints"
 
     #Load data
     print("loading data...")
@@ -146,6 +149,7 @@ if __name__ == "__main__":
     train_data = train_data.map(lambda img, label: ((tf.cast(img/tf.math.reduce_max(img), tf.float32) - mean_X)/std_X, tf.cast(label, tf.int32))).batch(32)
     #tf.reduce_max(random_int_var)
     
+    
 
     val_data = tf.data.Dataset.from_tensor_slices((val_X, val_lab))
     val_data = val_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32))).batch(1000)
@@ -153,17 +157,31 @@ if __name__ == "__main__":
     test_data = tf.data.Dataset.from_tensor_slices((test_X, test_lab))
     test_data = test_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32))).batch(10000)
 
-    for images, labels in train_data:
-            #print(tf.shape(images))
-            #print(images.get_shape())
-            train_step(images, labels)
+    model = ResNet50(include_top=True, weights=None, squeeze=False, squeeze_type='Normal')#, input_tensor = tf.data.Dataset.from_tensor_slices((train_X)))
+
+    """
+    features, label = iter(train_dataset).next()
+    print("example features:", features[0])
+    print("example label:", label[0])
+    """
+
+    checkpoint_dir = os.path.join(save_model_dir, "ckpt")
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
+    manager = tf.train.CheckpointManager(checkpoint, checkpoint_dir, max_to_keep=3)
+    checkpoint.restore(manager.latest_checkpoint)
+    if manager.latest_checkpoint:
+        print("Restaurado de {}".format(manager.latest_checkpoint))
+    else:
+        print("Inicializando desde cero")
 
 
+    losses = []
+    accs = []
 
     for i in range(epoch):
         for images, labels in train_data:
             #print(tf.shape(images))
-            print(images.get_shape()[-1])
+            #print(images.get_shape()[-1])
             train_step(images, labels)
 
             
@@ -175,9 +193,16 @@ if __name__ == "__main__":
                         train_loss.result(),
                         train_accuracy.result()*100))
 
+        save_path = manager.save()
+
+        losses.append(train_loss.result())
+        accs.append(train_accuracy.result())
+
         # Reinicia las metricas para el siguiente epoch.
         train_loss.reset_states()
         train_accuracy.reset_states()
+
+
 
     for images, labels in test_data:
         test_step(images, labels)
@@ -186,6 +211,22 @@ if __name__ == "__main__":
     print(template.format(
                         test_loss.result(),
                         test_accuracy.result()*100))
+
+    t = np.linspace(1, epoch, num=epoch)
+    plot1 = plt.figure(1)
+    plt.plot(t, losses, 'b')
+    plt.xlabel('epoch')
+    plt.ylabel('Loss')
+    plt.title('Training loss evolution')
+    plt.savefig('.\Result_Pics\loss_train')
+    plot2 = plt.figure(2)
+    plt.xlabel('epoch')
+    plt.ylabel('Accuracy')
+    plt.plot(t, accs, 'r')
+    plt.title('Training accuracy evolution')
+    plt.savefig('.\\Result_Pics\\acc_train')
+    plt.show()
+
    
 
     a = 1

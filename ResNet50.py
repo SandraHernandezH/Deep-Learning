@@ -12,18 +12,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tensorflow.keras.backend as K
+import tensorflow.keras.applications
 
 from tensorflow.keras.layers import Input, Activation, Dense, Flatten, Conv2D
 from tensorflow.keras.layers import MaxPooling2D, GlobalMaxPooling2D
 from tensorflow.keras.layers import AveragePooling2D, GlobalAveragePooling2D
 from tensorflow.keras.layers import ZeroPadding2D, BatchNormalization 
 from tensorflow.keras import Model
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.utils import layer_utils
-from tensorflow.keras.utils.data_utils import get_file
+from tensorflow.keras import layers
+from tensorflow.python.keras.preprocessing import image
+from tensorflow.python.keras.utils import layer_utils
+from tensorflow.python.keras.utils.data_utils import get_file
 from Squeeze_and_Excite import Squeeze_and_Excite
 
-def identity_block(input_tensor, kernel_size, filters, stage, block, squeeze = False):
+def identity_block(input_tensor, kernel_size, filters, stage, block, squeeze = False, squeeze_type = 'normal'):
     """The identity block is the block that has no conv layer at shortcut.
     # Arguments
         input_tensor: input tensor
@@ -47,6 +49,10 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, squeeze = F
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'    
 
+    if squeeze == True and squeeze_type == 'pre':
+        squeeze_block = Squeeze_and_Excite(input_tensor.get_shape()[bn_axis])
+        x = squeeze_block(input_tensor)
+
     x = Conv2D(filters1, (1, 1), name=conv_name_base + '2a')(input_tensor)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2a')(x)
     x = Activation('relu')(x)
@@ -60,15 +66,26 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, squeeze = F
    
     #K.int_shape(input_tensor)[bn_axis]
 
-    if squeeze == True:
+    if squeeze == True and squeeze_type == 'normal':
         squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
         x = squeeze_block(x)
-    
-    x = layers.add([x, input_tensor])
-    x = Activation('relu')(x)
+
+    if squeeze_type != 'identity':  #Never have squeeze = False and squeeze_type = 'identity'
+        x = layers.add([x, input_tensor])
+        x = Activation('relu')(x)
+
+    if squeeze == True and squeeze_type == 'post':
+        squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
+        x = squeeze_block(x)
+
+    if squeeze == True and squeeze_type == 'identity':
+        squeeze_block = Squeeze_and_Excite(input_tensor.get_shape()[bn_axis])
+        y = squeeze_block(input_tensor)
+        x = layers.add([y, x])
+
     return x
 
-def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2)):
+def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2), squeeze = False, squeeze_type = 'normal'):
     """A block that has a conv layer at shortcut.
     # Arguments
         input_tensor: input tensor
@@ -102,6 +119,10 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
+    if squeeze == True and squeeze_type == 'pre':
+        squeeze_block = Squeeze_and_Excite(input_tensor.get_shape()[bn_axis])
+        x = squeeze_block(input_tensor)
+
     x = Conv2D(filters1, (1, 1), strides=strides, name=conv_name_base + '2a')(input_tensor)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2a')(x)
     x = Activation('relu')(x)
@@ -116,13 +137,27 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
     shortcut = Conv2D(filters3, (1, 1), strides=strides, name=conv_name_base + '1')(input_tensor)
     shortcut = BatchNormalization(axis=bn_axis, name=bn_name_base + '1')(shortcut)
 
-    x = layers.add([x, shortcut])
-    x = Activation('relu')(x)
+    if squeeze == True and squeeze_type == 'normal':
+        squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
+        x = squeeze_block(x)
+
+    if squeeze_type != 'identity':
+        x = layers.add([x, shortcut])
+        x = Activation('relu')(x)
+
+    if squeeze == True and squeeze_type == 'post':
+        squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
+        x = squeeze_block(x)
+
+    if squeeze == True and squeeze_type == 'identity':
+        squeeze_block = Squeeze_and_Excite(input_tensor.get_shape()[bn_axis])
+        y = squeeze_block(input_tensor)
+        x = layers.add([y, x])
+
     return x
 
-
 # Modification to CIFAR10 (weights = ¿?)
-def ResNet50(include_top=True, weights=None, input_tensor=None, input_shape=None, pooling=None, classes=10, **kwargs):
+def ResNet50(include_top=True, weights=None, input_tensor=None, input_shape=None, pooling=None, classes=10, squeeze = False, squeeze_type = 'normal', **kwargs):
     """Instantiates the ResNet50 architecture.
     
     # Arguments
@@ -161,37 +196,20 @@ def ResNet50(include_top=True, weights=None, input_tensor=None, input_shape=None
     """
 
 
-    global backend, layers, models, keras_utils
-    backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
-
-    if not (weights in {'imagenet', None} or os.path.exists(weights)):
-        raise ValueError('The `weights` argument should be either '
-                         '`None` (random initialization), `imagenet` '
-                         '(pre-training on ImageNet), '
-                         'or the path to the weights file to be loaded.')
-
-    """
-    if weights == 'imagenet' and include_top and classes != 1000:
-        raise ValueError('If using `weights` as `"imagenet"` with `include_top`'
-                         ' as true, `classes` should be 1000')
-    """
+    #global backend, layers, models, keras_utils
+    #backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
 
     # Determine proper input shape
-    input_shape = _obtain_input_shape(input_shape,
-                                      default_size=32,
-                                      min_size=32,
-                                      data_format=backend.image_data_format(),
-                                      require_flatten=include_top,
-                                      weights=weights)
-
+    input_shape = (32, 32, 3)
+                    
     if input_tensor is None:
         img_input = layers.Input(shape=input_shape)
     else:
-        if not backend.is_keras_tensor(input_tensor):
+        if not K.is_keras_tensor(input_tensor):
             img_input = layers.Input(tensor=input_tensor, shape=input_shape)
         else:
             img_input = input_tensor
-    if backend.image_data_format() == 'channels_last':
+    if K.image_data_format() == 'channels_last':
         bn_axis = 3
     else:
         bn_axis = 1
@@ -204,27 +222,29 @@ def ResNet50(include_top=True, weights=None, input_tensor=None, input_shape=None
     x = MaxPooling2D((3, 3), strides=(2, 2))(x)
     
     #conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2)):
-    x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1))
-    x = identity_block(x, 3, [64, 64, 256], stage=2, block='b')
-    x = identity_block(x, 3, [64, 64, 256], stage=2, block='c')
+    x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1), squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [64, 64, 256], stage=2, block='b', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [64, 64, 256], stage=2, block='c', squeeze=squeeze, squeeze_type=squeeze_type)
 
-    x = conv_block(x, 3, [128, 128, 512], stage=3, block='a')
-    x = identity_block(x, 3, [128, 128, 512], stage=3, block='b')
-    x = identity_block(x, 3, [128, 128, 512], stage=3, block='c')
-    x = identity_block(x, 3, [128, 128, 512], stage=3, block='d')
+    x = conv_block(x, 3, [128, 128, 512], stage=3, block='a', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [128, 128, 512], stage=3, block='b', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [128, 128, 512], stage=3, block='c', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [128, 128, 512], stage=3, block='d', squeeze=squeeze, squeeze_type=squeeze_type)
 
-    x = conv_block(x, 3, [256, 256, 1024], stage=4, block='a')
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b')
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='c')
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='d')
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='e')
-    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='f')
+    x = conv_block(x, 3, [256, 256, 1024], stage=4, block='a', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='c', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='d', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='e', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [256, 256, 1024], stage=4, block='f', squeeze=squeeze, squeeze_type=squeeze_type)
 
-    x = conv_block(x, 3, [512, 512, 2048], stage=5, block='a')
-    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b')
-    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c')
+    x = conv_block(x, 3, [512, 512, 2048], stage=5, block='a', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b', squeeze=squeeze, squeeze_type=squeeze_type)
+    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c', squeeze=squeeze, squeeze_type=squeeze_type)
 
-    x = AveragePooling2D((7, 7), name='avg_pool')(x)
+    #Output shape: (1, 1, depth)
+
+    #x = AveragePooling2D((7, 7), name='avg_pool')(x)
 
     if include_top:
         x = Flatten()(x)
@@ -244,35 +264,13 @@ def ResNet50(include_top=True, weights=None, input_tensor=None, input_shape=None
     # Create model.
     model = Model(inputs, x, name='resnet50')
 
-    # Load weights.
-    if weights == 'imagenet':
-        if include_top:
-            weights_path = get_file('resnet50_weights_tf_dim_ordering_tf_kernels.h5',
-                WEIGHTS_PATH,
-                cache_subdir='models',
-                md5_hash='a7b3fe01876f51b976af0dea6bc144eb')
-        else:
-            weights_path = keras_utils.get_file('resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5',
-                WEIGHTS_PATH_NO_TOP,
-                cache_subdir='models',
-                md5_hash='a268eb855778b3df3c7506639542a6af')
-        model.load_weights(weights_path)
-        if backend.backend() == 'theano':
-            keras_utils.convert_all_kernels_in_model(model)
-    elif weights is not None:
-        model.load_weights(weights)
-
     return model
 
 
 if __name__ == '__main__':
-    model = ResNet50(include_top=True, weights=None)
+    model = ResNet50(include_top=True, weights=None, squeeze=False, squeeze_type='Normal')
 
-    img_path = 'elephant.jpg'
-    img = image.load_img(img_path, target_size=(32, 32))
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
+
     print('Input image shape:', x.shape)
 
     preds = model.predict(x)
