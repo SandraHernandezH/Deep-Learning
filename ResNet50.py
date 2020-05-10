@@ -79,7 +79,7 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, squeeze = F
         x = squeeze_block(x)
 
     if squeeze == True and squeeze_type == 'identity':
-        squeeze_block = Squeeze_and_Excite(input_tensor.get_shape()[bn_axis])
+        squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
         y = squeeze_block(input_tensor)
         x = layers.add([y, x])
 
@@ -141,23 +141,24 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
         squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
         x = squeeze_block(x)
 
-    if squeeze_type != 'identity':
-        x = layers.add([x, shortcut])
-        x = Activation('relu')(x)
+   
+    x = layers.add([x, shortcut])
+    x = Activation('relu')(x)
 
     if squeeze == True and squeeze_type == 'post':
         squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
         x = squeeze_block(x)
 
-    if squeeze == True and squeeze_type == 'identity':
-        squeeze_block = Squeeze_and_Excite(input_tensor.get_shape()[bn_axis])
-        y = squeeze_block(input_tensor)
-        x = layers.add([y, x])
+    
+    #if squeeze == True and squeeze_type == 'identity':
+        #squeeze_block = Squeeze_and_Excite(x.get_shape()[bn_axis])
+        #y = squeeze_block(input_tensor)
+        #x = layers.add([y, x])
 
     return x
 
 # Modification to CIFAR10 (weights = ¿?)
-def ResNet50(include_top=True, weights=None, input_tensor=None, input_shape=None, pooling=None, classes=10, squeeze = False, squeeze_type = 'normal', **kwargs):
+def ResNet50(include_top=True, input_tensor=None, input_shape=None, pooling=None, classes=10, squeeze = False, squeeze_type = 'normal', **kwargs):
     """Instantiates the ResNet50 architecture.
     
     # Arguments
@@ -245,10 +246,17 @@ def ResNet50(include_top=True, weights=None, input_tensor=None, input_shape=None
     #Output shape: (1, 1, depth)
 
     #x = AveragePooling2D((7, 7), name='avg_pool')(x)
+    print("Para saber si los datos nos llegan bien ")
+    print(x.get_shape())
 
     if include_top:
         x = Flatten()(x)
+        print("After flatten ")
+        print(x.get_shape())
         x = Dense(classes, activation='softmax', name='fc1000')(x)
+        print("After Dense ")
+        print(x.get_shape())
+
     else:
         if pooling == 'avg':
             x = GlobalAveragePooling2D()(x)

@@ -12,4 +12,4 @@ class Squeeze_and_Excite(Model):
         y = self.squeeze(x)
         y = self.dense_rel(y)
         y = self.dense_sig(y)
-        return Multiply()([x, y])
+        return Multiply()([x,   y])

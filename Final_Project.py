@@ -11,8 +11,11 @@ from sklearn.preprocessing import OneHotEncoder
 import tensorflow.keras.backend as K
 from Squeeze_and_Excite import Squeeze_and_Excite 
 from ResNet50 import *
+from LoadDataset import *
 
 epoch = 1
+batch_size = 32
+learning_rate = 0.01
 
 
 def unpickle(file):
@@ -33,13 +36,14 @@ def oneHotEncoder(data):
     integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
     onehot_encoded = onehot_encoder.fit_transform(integer_encoded)
     return onehot_encoded
-
+"""
 def normalize(data, mean_x, std_x):
     data_norm = data / np.max(data)
     data_norm = data_norm - mean_x
     data_norm = data_norm / std_x
 
     return data_norm
+"""
 
 class layerModel(Model):
     def __init__(self, inp_shape):
@@ -59,7 +63,7 @@ class layerModel(Model):
 #model = layerModel(3)
 
 loss_object = tf.keras.losses.SparseCategoricalCrossentropy()
-optimizer = tf.keras.optimizers.SGD(learning_rate=0.01)
+optimizer = tf.keras.optimizers.SGD(learning_rate=learning_rate)
 
 train_loss = tf.keras.metrics.Mean(name='train_loss')
 train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
@@ -73,12 +77,13 @@ def train_step(images, labels):
     # training=True is only needed if there are layers with different
     # behavior during training versus inference (e.g. Dropout).
         predictions = model(images, training = True)
+        print(predictions.get_shape())
         loss =loss_object(labels, predictions)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     train_loss(loss)
     train_accuracy(labels, predictions)
-
+        
 @tf.function
 def test_step(images, labels):
     # training=True is only needed if there are layers with different
@@ -92,10 +97,18 @@ def test_step(images, labels):
 
 if __name__ == "__main__":
 
-    save_model_dir = ".\checkpoints"
+    save_model_dir = ".\checkpoints2"
+
+    print("loading data...")
+    train_X, train_lab, test_X, test_lab = get_data()
+    print("normalizing data...")
+    train_X, test_X = normalize(train_X, test_X)
+    train_data = tf.data.Dataset.from_tensor_slices((train_X, train_lab)).batch(batch_size)
+    test_data = tf.data.Dataset.from_tensor_slices((test_X, test_lab)).batch(10000)
 
     #Load data
     print("loading data...")
+    """
     filetrain1 = "C:\cifar-10-batches-py\data_batch_1"
     filetrain2 = "C:\cifar-10-batches-py\data_batch_2"
     filetrain3 = "C:\cifar-10-batches-py\data_batch_3"
@@ -119,13 +132,14 @@ if __name__ == "__main__":
     val_lab = train_lab[len(train_lab)-1000:]
     train_lab = train_lab[:len(train_lab)-1000]
     test_X, test_lab = unpickle(filetest)
-
+    """
+    """
     #Normalization of data
     print("normalizing data...")
     mean_X = np.mean(train_X / np.max(train_X))
     std_X = np.std(train_X / np.max(train_X))
 
-    """
+    
     ohd = oneHotEncoder(train_lab)
     ohd_val = oneHotEncoder(val_lab)
     ohd_test = oneHotEncoder(test_lab)
@@ -133,7 +147,7 @@ if __name__ == "__main__":
     normTrain = normalize(train_X, mean_X, std_X)
     normVal = normalize(val_X, mean_X, std_X)
     normTest = normalize(test_X, mean_X, std_X)
-    """
+   
 
     mean_X = tf.cast(mean_X, tf.float32)
     std_X = tf.cast(std_X, tf.float32)
@@ -145,19 +159,21 @@ if __name__ == "__main__":
    
     #Transform data into Dataset for tensor
     print("transforming data...")
+    
     train_data = tf.data.Dataset.from_tensor_slices((train_X, train_lab))
     train_data = train_data.map(lambda img, label: ((tf.cast(img/tf.math.reduce_max(img), tf.float32) - mean_X)/std_X, tf.cast(label, tf.int32))).batch(32)
-    #tf.reduce_max(random_int_var)
+    #tf.reduce_max(random_int_var)    
     
-    
-
     val_data = tf.data.Dataset.from_tensor_slices((val_X, val_lab))
     val_data = val_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32))).batch(1000)
 
     test_data = tf.data.Dataset.from_tensor_slices((test_X, test_lab))
     test_data = test_data.map(lambda x, label: ((tf.cast(x/tf.math.reduce_max(x), tf.float32) - mean_X) / std_X, tf.cast(label, tf.int32))).batch(10000)
+    """
 
-    model = ResNet50(include_top=True, weights=None, squeeze=False, squeeze_type='Normal')#, input_tensor = tf.data.Dataset.from_tensor_slices((train_X)))
+    #model = ResNet50(include_top=True, weights=None, squeeze=False, squeeze_type='Normal')#, input_tensor = tf.data.Dataset.from_tensor_slices((train_X)))
+    #input_tensor = tf.placeholder(tf.float32, shape = [None, train_X.shape[0], train_X.shape[1], train_X.shape[2]])
+    model = ResNet50(include_top=True, squeeze=True, squeeze_type='identity') #pre, identity, normal
 
     """
     features, label = iter(train_dataset).next()
@@ -180,8 +196,7 @@ if __name__ == "__main__":
 
     for i in range(epoch):
         for images, labels in train_data:
-            #print(tf.shape(images))
-            #print(images.get_shape()[-1])
+            print(tf.shape(images))
             train_step(images, labels)
 
             

@@ -20,7 +20,7 @@ def unpickle(file):
 
     data_X = dict[b'data']
     test_labels = dict[b'labels']
-    print("Loading %s : %d." % (file, len(data)))
+    print("Loading %s : %d." % (file, len(data_X)))
     return data_X, test_labels
 
 def load_data(files, data_dir, label_count):
@@ -30,7 +30,7 @@ def load_data(files, data_dir, label_count):
         data_n, labels_n =  unpickle(data_dir + '/' + f)
         data = np.append(data, data_n, axis=0)
         labels = np.append(labels, labels_n, axis=0)
-    labels = np.array([[float(i == label) for i in range(label_count)] for label in labels])
+    #labels = np.array([[float(i == label) for i in range(label_count)] for label in labels])
     # channels_last
     data = data.reshape([-1, img_channels, img_size, img_size])
     data = data.transpose([0, 2, 3, 1])
@@ -40,9 +40,9 @@ def get_data():
     data_dir = '.\Datasets\cifar-10-batches-py'
     img_dim = img_size * img_size * img_channels
     # batches.meta contains the names of the different labels ("truck", "plane", ...)
-    meta = unpickle(data_dir + '/batches.meta')
+    #meta = unpickle(data_dir + '/batches.meta')
 
-    n_labels = len(meta[b'label_names'])
+    n_labels = classes
     train_files = ['data_batch_%d' % d for d in range(1, 6)]
     train_data, train_labels = load_data(train_files, data_dir, n_labels)
     test_data, test_labels = load_data(['test_batch'], data_dir, n_labels)
