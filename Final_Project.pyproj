@@ -23,9 +23,17 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Final_Project.py" />
+    <Compile Include="LoadDataset.py" />
+    <Compile Include="ResNet50.py" />
+    <Compile Include="Squeeze_and_Excite.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <InterpreterReference Include="Global|PythonCore|3.7" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="NewFile1.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
